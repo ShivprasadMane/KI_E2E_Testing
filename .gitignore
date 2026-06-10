@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Environment & secrets (never commit credentials)
+.env
+.env.local
+.env.*.local
+
+# Playwright auth sessions & test artifacts
+.auth/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Logs & debug
+*.log
+npm-debug.log*
+
+# OS & editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build / coverage
+dist/
+coverage/
+*.tsbuildinfo
