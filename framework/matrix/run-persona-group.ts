@@ -7,7 +7,7 @@ import { runMatrixRowSteps } from './run-matrix-row';
 import { parseWorkflow } from '../workflow/parse-workflow';
 
 function isLoginOnlyRow(row: MatrixRow): boolean {
-  const steps = parseWorkflow(row.workflow).map(normalizeStepName);
+  const steps = parseWorkflow(row.workflow, row.persona).map(normalizeStepName);
   return steps.length === 1 && steps[0] === 'login';
 }
 

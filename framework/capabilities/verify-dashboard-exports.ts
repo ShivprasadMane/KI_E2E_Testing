@@ -10,7 +10,7 @@ export async function executeVerifyDashboardExportsCapability(
 ): Promise<void> {
   if (!SUPPORTED_PERSONAS.has(row.persona)) {
     throw new Error(
-      `Row ${row.caseNo}: Verify Dashboard Exports applies to funeral, adviser, or admin — not ${row.persona}`,
+      `Row ${row.caseNo}: Verify Dashboard Exports applies to funeral or adviser — not ${row.persona}`,
     );
   }
 
@@ -19,5 +19,7 @@ export async function executeVerifyDashboardExportsCapability(
   }
 
   const exports = new DashboardExportPage(page, row.persona);
-  await exports.verifyAllSectionExports();
+  // Excel-only in matrix: PDF via @react-pdf/renderer can hang 90s+ on large adviser widgets in headed runs.
+  // Full excel + pdf coverage lives in tests/*/dashboard-export.spec.ts.
+  await exports.verifyAllSectionExports({ formats: ['excel'] });
 }

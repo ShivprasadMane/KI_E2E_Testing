@@ -10,7 +10,7 @@ export async function executeVerifySummaryDateFiltersCapability(
 ): Promise<void> {
   if (!SUPPORTED_PERSONAS.has(row.persona)) {
     throw new Error(
-      `Row ${row.caseNo}: Verify Summary Date Filters applies to funeral, adviser, or admin — not ${row.persona}`,
+      `Row ${row.caseNo}: Verify Summary Date Filters applies to funeral or adviser — not ${row.persona}`,
     );
   }
 

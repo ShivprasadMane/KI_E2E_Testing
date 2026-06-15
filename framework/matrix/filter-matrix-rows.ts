@@ -20,7 +20,7 @@ export function filterMatrixRows(rows: MatrixRow[]): MatrixRow[] {
       return false;
     }
 
-    const steps = parseWorkflow(row.workflow).map(normalizeStepName);
+    const steps = parseWorkflow(row.workflow, row.persona).map(normalizeStepName);
     const isLoginOnly = steps.length === 1 && steps[0] === 'login';
     if (isLoginOnly) {
       return false;

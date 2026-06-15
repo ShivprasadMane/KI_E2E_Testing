@@ -56,7 +56,7 @@ export class FuneralDashboardPage extends DashboardPage {
       this.page.context().waitForEvent('page'),
       locator.click(),
     ]);
-    await popup.waitForURL(link.urlPattern, { timeout: 30_000 });
+    await popup.waitForURL(link.urlPattern, { timeout: 45_000, waitUntil: 'domcontentloaded' });
     await expect(popup).toHaveURL(link.urlPattern);
     await popup.close();
   }

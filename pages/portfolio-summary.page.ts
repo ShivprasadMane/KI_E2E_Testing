@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import type { Persona } from '../framework/data/matrix.types';
+import { fetchJsonOnReload } from '../helpers/fetch-json-on-reload';
 import {
   buildExpectedAdviserPortfolioSummary,
   buildExpectedPortfolioSummary,
@@ -23,15 +24,11 @@ export class PortfolioSummaryPage {
   }
 
   async fetchApplicationCounts(): Promise<ApplicationCountSlice[]> {
-    const [response] = await Promise.all([
-      this.page.waitForResponse(
-        (res) => res.url().includes('/application/counts') && res.ok(),
-        { timeout: 60_000 },
-      ),
-      this.page.reload({ waitUntil: 'domcontentloaded' }),
-    ]);
+    const counts = await fetchJsonOnReload<ApplicationCountSlice[]>(this.page, (res) =>
+      res.url().includes('/application/counts') && res.ok(),
+    );
     await this.portfolioTable().waitFor({ state: 'visible', timeout: 30_000 });
-    return (await response.json()) as ApplicationCountSlice[];
+    return counts;
   }
 
   async readTableRows(): Promise<PortfolioSummaryRow[]> {
@@ -61,8 +58,6 @@ export class PortfolioSummaryPage {
 
   async readTotalRow(): Promise<{ policies: number; amount: number }> {
     const table = this.portfolioTable();
-    // NFDA funeral dashboard: Total is the last tbody row.
-    // Financial adviser dashboard: Total is in MUI TableFooter (tfoot).
     const totalRow = table.locator('tbody tr, tfoot tr').filter({ hasText: 'Total' }).last();
     await expect(totalRow).toBeVisible({ timeout: 30_000 });
 
@@ -73,9 +68,6 @@ export class PortfolioSummaryPage {
     };
   }
 
-  /**
-   * Verify UI matches `/application/counts` and total row math (frontend rules).
-   */
   async verifyCalculations(): Promise<void> {
     const counts = await this.fetchApplicationCounts();
     const expected =

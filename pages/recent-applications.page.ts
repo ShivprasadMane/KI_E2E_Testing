@@ -1,4 +1,6 @@
 import { expect, type Page } from '@playwright/test';
+import { applicationDetailHeading } from '../helpers/applications/detail-page';
+import { fetchJsonOnReload } from '../helpers/fetch-json-on-reload';
 
 export type RecentApplicationSummary = {
   id: string;
@@ -17,19 +19,13 @@ export class RecentApplicationsPage {
   }
 
   async waitForRecentApplications(): Promise<RecentApplicationSummary[]> {
-    const [response] = await Promise.all([
-      this.page.waitForResponse(
-        (res) => res.url().includes('/application/latest') && res.ok(),
-        { timeout: 60_000 },
-      ),
-      this.page.reload({ waitUntil: 'domcontentloaded' }),
-    ]);
-    const apps = (await response.json()) as RecentApplicationSummary[];
+    const apps = await fetchJsonOnReload<RecentApplicationSummary[]>(this.page, (res) =>
+      res.url().includes('/application/latest') && res.ok(),
+    );
     await expect(this.section().locator('tbody tr').first()).toBeVisible({ timeout: 30_000 });
     return apps;
   }
 
-  /** Click the open-in-tab icon on the first recent application row. */
   async openFirstApplicationView(): Promise<{
     application: RecentApplicationSummary;
     applicantName: string;
@@ -50,7 +46,7 @@ export class RecentApplicationsPage {
       firstRow.locator('td').last().click(),
     ]);
 
-    await expect(this.page.getByText(/Application Details/i)).toBeVisible({ timeout: 30_000 });
+    await expect(applicationDetailHeading(this.page)).toBeVisible({ timeout: 30_000 });
     await expect(this.page.getByText(application.displayId)).toBeVisible();
     await expect(this.page.getByText(applicantName)).toBeVisible();
 

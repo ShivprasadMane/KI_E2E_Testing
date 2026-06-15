@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { installCountryStateBootstrap } from '../../helpers/applications/create/mock-country-state-api';
 import type { B2CTenant } from '../../helpers/env';
 import { loginViaB2C, attemptLoginViaB2C } from '../../helpers/auth/login-b2c';
 import { loginAsGuest } from '../../helpers/auth/login-guest';
@@ -23,6 +24,8 @@ function b2cTenantForPersona(persona: MatrixRow['persona']): B2CTenant {
 }
 
 export async function executeLoginCapability(page: Page, row: MatrixRow): Promise<void> {
+  await installCountryStateBootstrap(page);
+
   if (useSavedSession(row)) {
     const dashboard = new DashboardPage(page, row.persona);
     await dashboard.open();

@@ -24,7 +24,7 @@ export async function runMatrixRowSteps(
   row: MatrixRow,
   options?: RunMatrixRowOptions,
 ): Promise<void> {
-  const steps = parseWorkflow(row.workflow);
+  const steps = parseWorkflow(row.workflow, row.persona);
   if (steps.length === 0) {
     throw new Error(`Row ${row.caseNo}: Workflow is empty`);
   }

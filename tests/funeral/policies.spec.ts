@@ -1,0 +1,40 @@
+import { test } from '@playwright/test';
+import { PolicyDetailLayoutPage } from '../../pages/policy-detail-layout.page';
+import { PoliciesPage } from '../../pages/policies.page';
+
+test.describe('Funeral Director policies tab @funeral @funeral-policies', () => {
+  test.beforeEach(async ({ page }) => {
+    const policies = new PoliciesPage(page, 'funeral');
+    await policies.open();
+  });
+
+  test('policy table columns and API data match', async ({ page }) => {
+    const policies = new PoliciesPage(page, 'funeral');
+    await policies.verifyTableColumns();
+    await policies.verifyTableDataMatchesApi();
+  });
+
+  test('search sort print filters and pagination', async ({ page }) => {
+    const policies = new PoliciesPage(page, 'funeral');
+    await policies.verifySearch();
+    await policies.verifySortableColumns();
+    await policies.exportPolicyListExcel();
+    await policies.verifyFilters();
+    await policies.verifyPagination();
+  });
+
+  test('view details opens policy detail sections', async ({ page }) => {
+    const policies = new PoliciesPage(page, 'funeral');
+    const portfoliocode = await policies.openPolicyDetail();
+
+    const detail = new PolicyDetailLayoutPage(page, 'funeral');
+    await detail.assertLoaded(portfoliocode);
+    await detail.verifyClientPolicyTab(portfoliocode);
+    await detail.verifyDetailSections(portfoliocode);
+    await detail.verifyTransactionHistoryFilters();
+    await detail.openPrintReportDialog();
+    await detail.verifyDocumentsSection();
+    await detail.verifyAdditionalDocumentsSection();
+    await detail.clickClose();
+  });
+});

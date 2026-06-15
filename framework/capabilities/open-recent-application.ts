@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { DashboardPage } from '../../pages/dashboard.page';
+import { assertDashboardLoaded } from '../../pages/dashboard.page';
 import { RecentApplicationsPage } from '../../pages/recent-applications.page';
 import type { MatrixRow, Persona } from '../data/matrix.types';
 
@@ -11,7 +11,7 @@ export async function executeOpenRecentApplicationCapability(
 ): Promise<void> {
   if (!SUPPORTED_PERSONAS.has(row.persona)) {
     throw new Error(
-      `Row ${row.caseNo}: Open Recent Application applies to funeral, adviser, or admin — not ${row.persona}`,
+      `Row ${row.caseNo}: Open Recent Application applies to funeral or adviser — not ${row.persona}`,
     );
   }
 
@@ -21,4 +21,8 @@ export async function executeOpenRecentApplicationCapability(
 
   const recent = new RecentApplicationsPage(page);
   await recent.openFirstApplicationView();
+
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.goto('/adviser/dashboard');
+  await assertDashboardLoaded(page, row.persona);
 }

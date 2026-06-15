@@ -29,18 +29,22 @@ export async function assertDashboardLoaded(page: Page, persona: Persona): Promi
     case 'investor':
       await expect(page).toHaveURL(/\/investor\/dashboard/);
       await expect(page.getByRole('tab', { name: 'Dashboard' })).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByRole('tab', { name: 'Clients' })).toBeVisible();
+      await expect(page.getByRole('tab', { name: 'Policies' })).toBeVisible();
       break;
 
     case 'funeral':
       await expect(page).toHaveURL(/\/adviser\/dashboard/);
       await expect(page.getByRole('tab', { name: 'Dashboard' })).toBeVisible({ timeout: 30_000 });
-      await expect(page.getByRole('tab', { name: 'Applications' })).toBeVisible();
+      await expect(page.getByRole('tab', { name: 'Clients' })).toBeVisible();
+      await expect(page.getByRole('tab', { name: 'Policies' })).toBeVisible();
       break;
 
     case 'adviser':
       await expect(page).toHaveURL(/\/adviser\/dashboard/);
       await expect(page.getByRole('tab', { name: 'Dashboard' })).toBeVisible({ timeout: 30_000 });
       await expect(page.getByRole('tab', { name: 'Clients' })).toBeVisible();
+      await expect(page.getByRole('tab', { name: 'Policies' })).toBeVisible();
       break;
 
     case 'admin':
