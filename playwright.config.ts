@@ -15,6 +15,7 @@ export default defineConfig({
     'framework/specs/universal.matrix.spec.ts',
     'framework/specs/universal.matrix-funeral.spec.ts',
     'framework/specs/universal.matrix-grouped.spec.ts',
+    'framework/specs/universal.matrix-create-application.spec.ts',
   ],
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
@@ -70,6 +71,13 @@ export default defineConfig({
       name: 'matrix-grouped',
       testMatch: /framework\/specs\/universal\.matrix-grouped\.spec\.ts/,
       timeout: 600_000,
+      use: { ...devices['Desktop Chrome'] },
+    },
+
+    {
+      name: 'matrix-create-application',
+      testMatch: /framework\/specs\/universal\.matrix-create-application\.spec\.ts/,
+      timeout: 900_000,
       use: { ...devices['Desktop Chrome'] },
     },
 

@@ -39,7 +39,7 @@ const errors: string[] = [];
 
 for (const row of rows) {
   const tag = row.enabled ? '' : ' [disabled]';
-  const steps = parseWorkflow(row.workflow);
+    const steps = parseWorkflow(row.workflow, row.persona);
 
   if (steps.length === 0) {
     errors.push(`  Row ${row.caseNo}${tag} (${row.persona}): Workflow column is empty`);

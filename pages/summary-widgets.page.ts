@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import type { Persona } from '../framework/data/matrix.types';
+import { fetchJsonOnAction, fetchJsonOnReload } from '../helpers/fetch-json-on-reload';
 import {
   applicationStatusToRows,
   assertSummaryRowsMatch,
@@ -49,37 +50,29 @@ export class SummaryWidgetsPage {
     return parseSummaryTableRows(parsed);
   }
 
-  private async waitForStatusCounts<T>(
+  private matchStatusCounts(
     title: SummaryWidget,
     predicate?: (body: { fromDate: string | null; toDate: string | null }) => boolean,
-  ): Promise<T> {
+  ) {
     const config = WIDGET_CONFIG[title];
-    const response = await this.page.waitForResponse((res) => {
+    return (res: import('@playwright/test').Response) => {
       if (!res.url().includes(config.apiPath) || res.request().method() !== 'POST') {
         return false;
       }
       if (!predicate) return true;
       const body = res.request().postDataJSON() as { fromDate: string | null; toDate: string | null };
       return predicate(body);
-    });
-    return (await response.json()) as T;
+    };
   }
 
   async verifyDefaultSummary(title: SummaryWidget): Promise<void> {
     const config = WIDGET_CONFIG[title];
-    const [response] = await Promise.all([
-      this.page.waitForResponse((res) => {
-        if (!res.url().includes(config.apiPath) || res.request().method() !== 'POST') {
-          return false;
-        }
-        const body = res.request().postDataJSON() as { fromDate: string | null; toDate: string | null };
-        return body.fromDate == null && body.toDate == null;
-      }),
-      this.page.reload({ waitUntil: 'domcontentloaded' }),
-    ]);
-    await expect(this.widget(title)).toBeVisible({ timeout: 30_000 });
+    const data = await fetchJsonOnReload<ApplicationStatusCount | ClaimStatusCount>(
+      this.page,
+      this.matchStatusCounts(title, (body) => body.fromDate == null && body.toDate == null),
+    );
 
-    const data = (await response.json()) as ApplicationStatusCount | ClaimStatusCount;
+    await expect(this.widget(title)).toBeVisible({ timeout: 30_000 });
     const uiRows = await this.readWidgetTable(title);
     assertSummaryRowsMatch(uiRows, config.toRows(data), title);
   }
@@ -95,15 +88,14 @@ export class SummaryWidgetsPage {
 
     await days.nth(startDayIndex).click();
 
-    const response = await Promise.all([
-      this.waitForStatusCounts<ApplicationStatusCount | ClaimStatusCount>(title, (body) =>
-        body.toDate != null,
-      ),
-      days.nth(endDayIndex).click(),
-    ]).then(([data]) => data);
+    const data = await fetchJsonOnAction<ApplicationStatusCount | ClaimStatusCount>(
+      this.page,
+      this.matchStatusCounts(title, (body) => body.toDate != null),
+      () => days.nth(endDayIndex).click(),
+    );
 
     const uiRows = await this.readWidgetTable(title);
-    assertSummaryRowsMatch(uiRows, WIDGET_CONFIG[title].toRows(response), `${title} (filtered)`);
+    assertSummaryRowsMatch(uiRows, WIDGET_CONFIG[title].toRows(data), `${title} (filtered)`);
     await expect(section.getByText(/\d{2}\/\d{2}\/\d{4} - \d{2}\/\d{2}\/\d{4}/)).toBeVisible();
   }
 
@@ -112,19 +104,17 @@ export class SummaryWidgetsPage {
     const closeButton = section.getByRole('button', { name: 'close' });
     await expect(closeButton).toBeVisible();
 
-    const data = await Promise.all([
-      this.waitForStatusCounts<ApplicationStatusCount | ClaimStatusCount>(title, (body) =>
-        body.fromDate == null && body.toDate == null,
-      ),
-      closeButton.click(),
-    ]).then(([response]) => response);
+    const data = await fetchJsonOnAction<ApplicationStatusCount | ClaimStatusCount>(
+      this.page,
+      this.matchStatusCounts(title, (body) => body.fromDate == null && body.toDate == null),
+      () => closeButton.click(),
+    );
 
     const uiRows = await this.readWidgetTable(title);
     assertSummaryRowsMatch(uiRows, WIDGET_CONFIG[title].toRows(data), `${title} (cleared)`);
-    await expect(section.getByText(/\d{2}\/\d{2}\/\d{4} - \d{2}\/\d{2}\/\d{4}/)).toHaveCount(0);
+    await expect(section.getByText(/\d{2}\/\d{2}\/\d{4} - \d{2}\/\d{4}/)).toHaveCount(0);
   }
 
-  /** Default → filtered → cleared for Applications (and Claims on funeral dashboard). */
   async verifySummaryDateFilters(persona: Persona = 'funeral'): Promise<void> {
     await this.verifyDefaultSummary('Applications Summary');
     await this.applyDateRange('Applications Summary');

@@ -7,6 +7,13 @@ export type DashboardExportSection = {
   buttonTitle: string;
   excelFile: RegExp;
   pdfFile: RegExp;
+  /** Wait for this API path after click (adviser widgets fetch all rows before opening dialog). */
+  waitForApi?: string;
+};
+
+export type VerifyAllSectionExportsOptions = {
+  /** Defaults to excel + pdf. Matrix runs use excel only — PDF can hang on large adviser widgets in headed mode. */
+  formats?: readonly ExportFormat[];
 };
 
 const SHARED_EXPORT_SECTIONS: readonly Omit<DashboardExportSection, 'buttonTitle'>[] = [
@@ -33,6 +40,27 @@ const CLAIMS_SUMMARY_SECTION: DashboardExportSection = {
   excelFile: /^claims_summary\.xlsx$/i,
   pdfFile: /^claims_summary\.pdf$/i,
 };
+
+const ADVISER_ONLY_EXPORT_SECTIONS: readonly DashboardExportSection[] = [
+  {
+    buttonTitle: 'Export Funeral Bond Allowable Contributions',
+    excelFile: /^allowable_contributions\.xlsx$/i,
+    pdfFile: /^allowable_contributions\.pdf$/i,
+    waitForApi: '/owner/FBpolicies/',
+  },
+  {
+    buttonTitle: 'Export Approaching Anniversary Dates',
+    excelFile: /^upcoming_anniversary\.xlsx$/i,
+    pdfFile: /^upcoming_anniversary\.pdf$/i,
+    waitForApi: '/owner/policiesByAnnv/',
+  },
+  {
+    buttonTitle: 'Export Adviser Fees and Client Consent End Date',
+    excelFile: /^adviser_fees_client_consent\.xlsx$/i,
+    pdfFile: /^adviser_fees_client_consent\.pdf$/i,
+    waitForApi: '/owner/advisorfee/',
+  },
+];
 
 /** Export sections per persona — funeral NFDA dashboard vs financial adviser dashboard. */
 export function getDashboardExportSections(persona: Persona): readonly DashboardExportSection[] {
@@ -67,6 +95,10 @@ export function getDashboardExportSections(persona: Persona): readonly Dashboard
     sections.push(CLAIMS_SUMMARY_SECTION);
   }
 
+  if (persona === 'adviser') {
+    sections.push(...ADVISER_ONLY_EXPORT_SECTIONS);
+  }
+
   return sections;
 }
 
@@ -87,52 +119,107 @@ export class DashboardExportPage {
     return this.page.getByRole('button', { name: title });
   }
 
+  private exportDialog() {
+    return this.page.getByRole('dialog').filter({ hasText: 'Export Report' });
+  }
+
+  /** Close any export dialog left open from a prior step (common after headed popup / export runs). */
+  private async dismissStaleDialogs(): Promise<void> {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const dialog = this.exportDialog();
+      if (!(await dialog.isVisible().catch(() => false))) {
+        return;
+      }
+
+      const closeButton = dialog.getByRole('button').first();
+      if (await closeButton.isVisible().catch(() => false)) {
+        await closeButton.click().catch(() => {});
+      }
+
+      await this.page.keyboard.press('Escape');
+      await dialog.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
+    }
+  }
+
   async assertAllExportButtonsVisible(): Promise<void> {
     for (const { buttonTitle } of this.sections) {
-      await expect(this.exportButton(buttonTitle)).toBeVisible();
+      const button = this.exportButton(buttonTitle);
+      await button.scrollIntoViewIfNeeded();
+      await expect(button).toBeVisible();
     }
   }
 
   async openExportDialog(section: DashboardExportSection): Promise<void> {
-    await this.exportButton(section.buttonTitle).click();
-    const dialog = this.page.getByRole('dialog');
-    await expect(dialog).toBeVisible();
+    await this.dismissStaleDialogs();
+
+    const button = this.exportButton(section.buttonTitle);
+    await button.scrollIntoViewIfNeeded();
+    await expect(button).toBeVisible({ timeout: 30_000 });
+
+    if (section.waitForApi) {
+      await Promise.all([
+        this.page.waitForResponse(
+          (res) => res.url().includes(section.waitForApi!) && res.ok(),
+          { timeout: 90_000 },
+        ),
+        button.click(),
+      ]);
+    } else {
+      await button.click();
+    }
+
+    const dialog = this.exportDialog();
+    await expect(dialog).toBeVisible({ timeout: 60_000 });
     await expect(dialog.getByText('Export Report')).toBeVisible();
-    await expect(this.page.getByRole('radio', { name: /Excel/i })).toBeVisible();
-    await expect(this.page.getByRole('radio', { name: /PDF/i })).toBeVisible();
+    await expect(dialog.getByRole('radio', { name: /Excel/i })).toBeVisible();
+    await expect(dialog.getByRole('radio', { name: /PDF/i })).toBeVisible();
   }
 
   async exportSection(section: DashboardExportSection, format: ExportFormat): Promise<string> {
-    await this.openExportDialog(section);
+    try {
+      await this.openExportDialog(section);
 
-    const radioLabel = format === 'excel' ? /Excel/i : /PDF/i;
-    await this.page.getByRole('radio', { name: radioLabel }).check();
+      const dialog = this.exportDialog();
+      const radioLabel = format === 'excel' ? /Excel/i : /PDF/i;
+      await dialog.getByRole('radio', { name: radioLabel }).check();
 
-    const [download] = await Promise.all([
-      this.page.waitForEvent('download', { timeout: 60_000 }),
-      this.page.getByRole('button', { name: 'Export', exact: true }).click(),
-    ]);
+      const exportButton = dialog.getByRole('button', { name: 'Export', exact: true });
+      await expect(exportButton).toBeVisible();
+      await expect(exportButton).toBeEnabled();
 
-    const filename = download.suggestedFilename();
-    const pattern = format === 'excel' ? section.excelFile : section.pdfFile;
-    expect(filename).toMatch(pattern);
+      const downloadTimeout = format === 'pdf' ? 120_000 : 90_000;
+      const [download] = await Promise.all([
+        this.page.context().waitForEvent('download', { timeout: downloadTimeout }),
+        exportButton.click(),
+      ]);
 
-    const filePath = await download.path();
-    if (filePath) {
-      const fs = await import('fs');
-      expect(fs.statSync(filePath).size).toBeGreaterThan(0);
+      const filename = download.suggestedFilename();
+      const pattern = format === 'excel' ? section.excelFile : section.pdfFile;
+      expect(filename, `Unexpected filename for "${section.buttonTitle}" (${format})`).toMatch(pattern);
+
+      const filePath = await download.path();
+      if (filePath) {
+        const fs = await import('fs');
+        expect(fs.statSync(filePath).size).toBeGreaterThan(0);
+      }
+
+      await expect(this.exportDialog()).toBeHidden({ timeout: 15_000 });
+      return filename;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`"${section.buttonTitle}" (${format}): ${message}`);
     }
-
-    await expect(this.page.getByRole('dialog')).toBeHidden({ timeout: 15_000 });
-    return filename;
   }
 
-  /** Excel + PDF export for every dashboard widget on this persona's dashboard. */
-  async verifyAllSectionExports(): Promise<void> {
+  /** Export every dashboard widget. Matrix uses excel-only; dedicated specs cover PDF. */
+  async verifyAllSectionExports(options?: VerifyAllSectionExportsOptions): Promise<void> {
+    const formats = options?.formats ?? (['excel', 'pdf'] as const);
     await this.assertAllExportButtonsVisible();
+
     for (const section of this.sections) {
-      await this.exportSection(section, 'excel');
-      await this.exportSection(section, 'pdf');
+      for (const format of formats) {
+        await this.exportSection(section, format);
+      }
     }
   }
 }
